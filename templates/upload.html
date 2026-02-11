@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Upload Photos</h1>
+<p class="text-muted" style="margin-bottom:1rem;">Upload photos of your items. You can include multiple items — AI will group them for you.</p>
+<div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+    <div class="upload-icon">📸</div>
+    <p style="font-weight:500; color:var(--text);">Drag & drop photos here</p>
+    <p class="text-muted">or tap to choose from your device</p>
+</div>
+<input type="file" id="fileInput" multiple accept="image/*,.heic,.heif" style="display:none">
+<div style="text-align:center; margin-top:0.6rem;">
+    <button class="btn btn-sm btn-secondary" onclick="document.getElementById('cameraInput').click()">📷 Use Camera</button>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+</div>
+<div id="preview" class="photo-grid" style="display:none; margin-top:1.5rem;"></div>
+<div id="uploadActions" style="display:none; text-align:center; margin-top:1rem;">
+    <span id="fileCount" class="text-muted"></span>
+    <button class="btn btn-primary" id="uploadBtn">Upload & Group</button>
+</div>
+<div id="uploadProgress" style="display:none; text-align:center; margin-top:1rem;">
+    <div class="spinner"></div>
+    <p>Uploading and analyzing photos...</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function() {
+    var dropZone = document.getElementById('dropZone');
+    var fileInput = document.getElementById('fileInput');
+    var cameraInput = document.getElementById('cameraInput');
+    var preview = document.getElementById('preview');
+    var uploadActions = document.getElementById('uploadActions');
+    var uploadProgress = document.getElementById('uploadProgress');
+    var uploadBtn = document.getElementById('uploadBtn');
+    var fileCount = document.getElementById('fileCount');
+    var selectedFiles = [];
+
+    function addFiles(fileList) {
+        console.log('addFiles called with', fileList.length, 'files');
+        for (var i = 0; i < fileList.length; i++) {
+            var f = fileList[i];
+            var isImage = f.type.startsWith('image/') || 
+                          /\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(f.name);
+            console.log('File:', f.name, 'type:', f.type, 'isImage:', isImage);
+            if (isImage) {
+                selectedFiles.push(f);
+            }
+        }
+        console.log('Total selected:', selectedFiles.length);
+        renderPreview();
+    }
+
+    function renderPreview() {
+        if (selectedFiles.length === 0) {
+            preview.style.display = 'none';
+            uploadActions.style.display = 'none';
+            return;
+        }
+        preview.style.display = 'grid';
+        uploadActions.style.display = 'block';
+        fileCount.textContent = selectedFiles.length + ' photo(s) selected';
+        var html = '';
+        for (var i = 0; i < selectedFiles.length; i++) {
+            var f = selectedFiles[i];
+            var isHeic = /\.heic$/i.test(f.name) || /\.heif$/i.test(f.name);
+            var url = URL.createObjectURL(f);
+            html += '<div class="photo-card">' +
+                '<img src="' + url + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' +
+                '<div class="photo-placeholder" style="display:none;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;background:linear-gradient(135deg,#f0f0f0,#e0e0e0);gap:0.25rem;">' +
+                '<span style="font-size:1.5rem;">📷</span>' +
+                '<span style="font-size:0.7rem;color:#888;padding:0 0.25rem;text-align:center;word-break:break-all;">' + f.name.substring(0,20) + '</span>' +
+                '</div>' +
+                '<button class="remove-btn" data-idx="' + i + '">×</button></div>';
+        }
+        preview.innerHTML = html;
+
+        // Attach remove handlers
+        var btns = preview.querySelectorAll('.remove-btn');
+        for (var j = 0; j < btns.length; j++) {
+            btns[j].addEventListener('click', function(e) {
+                e.stopPropagation();
+                var idx = parseInt(this.getAttribute('data-idx'));
+                selectedFiles.splice(idx, 1);
+                renderPreview();
+            });
+        }
+    }
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+    dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles(e.dataTransfer.files); });
+
+    // File inputs
+    fileInput.addEventListener('change', function() {
+        console.log('fileInput change event fired, files:', this.files.length);
+        addFiles(this.files);
+        this.value = '';  // Reset so same files can be re-selected
+    });
+    cameraInput.addEventListener('change', function() {
+        console.log('cameraInput change event fired');
+        addFiles(this.files);
+        this.value = '';
+    });
+
+    // Upload button
+    uploadBtn.addEventListener('click', function() {
+        if (selectedFiles.length === 0) return;
+        uploadActions.style.display = 'none';
+        uploadProgress.style.display = 'block';
+        var fd = new FormData();
+        for (var i = 0; i < selectedFiles.length; i++) {
+            fd.append('files', selectedFiles[i]);
+        }
+        fetch('/api/upload', { method: 'POST', body: fd })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                }
+            })
+            .catch(function(e) {
+                alert('Upload failed: ' + e.message);
+                uploadActions.style.display = 'block';
+                uploadProgress.style.display = 'none';
+            });
+    });
+
+    console.log('STBF upload script loaded');
+})();
+</script>
+{% endblock %}

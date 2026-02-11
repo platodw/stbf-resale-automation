@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sacramento&amp;display=swap');
+    .script { font-family: 'Sacramento', cursive; font-size: 42px; fill: #1a1a1a; }
+    .caps { font-family: 'Inter', -apple-system, sans-serif; font-size: 11px; fill: #1a1a1a; letter-spacing: 3px; font-weight: 600; }
+  </style>
+  <text x="10" y="38" class="script">Something</text>
+  <text x="95" y="55" class="caps">TO BE</text>
+  <text x="80" y="78" class="script">Found</text>
+</svg>

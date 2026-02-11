@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>Group Review — Batch #{{ batch.id }}</h1>
+    <p class="text-muted">Each group = one listing. Drag photos between groups or reorder within a group.</p>
+</div>
+
+{% for gd in groups %}
+<div class="group-card" data-group-id="{{ gd.group.id }}">
+    <div class="group-header">
+        <h3>Group #{{ gd.group.id }}</h3>
+        <span class="badge">{{ gd.photos|length }} photo(s)</span>
+    </div>
+    <div class="photo-grid drop-target sortable-group" data-group-id="{{ gd.group.id }}">
+        {% for p in gd.photos %}
+        <div class="photo-card draggable" draggable="true" data-photo-id="{{ p.id }}" data-seq="{{ p.sequence or loop.index0 }}">
+            <img src="{{ p.file_path|thumb }}" alt="Photo {{ p.id }}">
+            <div class="seq-badge">{{ loop.index }}</div>
+            {% if p.is_stock %}<div style="position:absolute;bottom:3px;left:3px;background:rgba(200,169,126,0.9);color:white;border-radius:3px;padding:1px 4px;font-size:0.55rem;font-weight:700;">📷 Stock</div>{% endif %}
+            <button class="delete-photo-btn" data-photo-id="{{ p.id }}" title="Delete photo">×</button>
+        </div>
+        {% endfor %}
+        {% if not gd.photos %}
+        <p class="text-muted drop-hint">Drop photos here</p>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% if ungrouped %}
+<div class="group-card" data-group-id="0">
+    <h3>Ungrouped</h3>
+    <div class="photo-grid drop-target" data-group-id="0">
+        {% for p in ungrouped %}
+        <div class="photo-card draggable" draggable="true" data-photo-id="{{ p.id }}">
+            <img src="{{ p.file_path }}">
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="actions-bar">
+    <button class="btn btn-secondary" id="newGroupBtn" onclick="createGroup()">+ New Group</button>
+    <button class="btn btn-primary" id="confirmBtn" onclick="confirmGroups()">Confirm & Generate Listings</button>
+</div>
+<div id="confirmProgress" style="display:none; text-align:center; margin-top:1rem;">
+    <div class="spinner"></div>
+    <p>Generating listings with AI... this may take a moment</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<style>
+.seq-badge {
+    position: absolute; top: 4px; left: 4px; background: rgba(26,26,26,0.7);
+    color: white; border-radius: 50%; width: 22px; height: 22px; font-size: 0.7rem;
+    display: flex; align-items: center; justify-content: center; font-weight: 700;
+}
+.delete-photo-btn {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(192,57,43,0.85); color: white;
+    border: none; border-radius: 50%;
+    width: 22px; height: 22px; font-size: 14px;
+    line-height: 22px; text-align: center;
+    cursor: pointer; opacity: 0; transition: opacity 0.15s;
+}
+.photo-card:hover .delete-photo-btn { opacity: 1; }
+.delete-photo-btn:hover { background: rgba(192,57,43,1); }
+.dragging { opacity: 0.4; }
+.drop-indicator { border-left: 3px solid var(--primary); }
+</style>
+<script>
+var batchId = {{ batch.id }};
+var draggedEl = null;
+var dragSourceGroup = null;
+
+// Drag start
+document.querySelectorAll('.draggable').forEach(function(el) {
+    el.addEventListener('dragstart', function(e) {
+        draggedEl = el;
+        dragSourceGroup = el.closest('.drop-target');
+        e.dataTransfer.setData('text/plain', el.dataset.photoId);
+        el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', function() {
+        el.classList.remove('dragging');
+        draggedEl = null;
+        dragSourceGroup = null;
+    });
+});
+
+// Drop zones — both between groups and reorder within
+document.querySelectorAll('.drop-target').forEach(function(zone) {
+    zone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', function() {
+        zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        var photoId = e.dataTransfer.getData('text/plain');
+        var targetGroupId = zone.dataset.groupId;
+
+        // Determine drop position within group for sequencing
+        var cards = Array.from(zone.querySelectorAll('.photo-card:not(.dragging)'));
+        var dropIndex = cards.length; // default: end
+        for (var i = 0; i < cards.length; i++) {
+            var rect = cards[i].getBoundingClientRect();
+            if (e.clientX < rect.left + rect.width / 2) {
+                dropIndex = i;
+                break;
+            }
+        }
+
+        // Move photo to group and set sequence
+        var fd = new FormData();
+        fd.append('photo_id', photoId);
+        fd.append('target_group_id', targetGroupId);
+        fd.append('position', dropIndex);
+        fetch('/api/groups/' + batchId + '/move-photo', { method: 'POST', body: fd })
+            .then(function() { location.reload(); })
+            .catch(function(err) { showAlert('❌', 'Move Failed', err.toString(), 'danger'); });
+    });
+});
+
+// Delete photo
+document.querySelectorAll('.delete-photo-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var photoId = this.dataset.photoId;
+        showConfirm({
+            icon: '🗑', title: 'Delete Photo',
+            message: 'Remove this photo from the batch?',
+            confirmText: 'Delete', type: 'danger',
+            onConfirm: function() {
+                fetch('/api/photo/' + photoId, { method: 'DELETE' })
+                    .then(function() { location.reload(); })
+                    .catch(function(err) { showAlert('❌', 'Delete Failed', err.toString(), 'danger'); });
+            }
+        });
+    });
+});
+
+function createGroup() {
+    fetch('/api/groups/' + batchId + '/new-group', { method: 'POST' })
+        .then(function() { location.reload(); });
+}
+
+function confirmGroups() {
+    document.getElementById('confirmBtn').style.display = 'none';
+    document.getElementById('newGroupBtn').style.display = 'none';
+    document.getElementById('confirmProgress').style.display = 'block';
+
+    fetch('/api/groups/' + batchId + '/confirm', { method: 'POST' })
+        .then(function(resp) {
+            if (!resp.ok) throw new Error('Server error ' + resp.status);
+            return resp.json();
+        })
+        .then(function(data) {
+            if (data.redirect) {
+                window.location.href = data.redirect;
+            } else if (data.error) {
+                showAlert('😕', 'Generation Failed', data.error, 'danger');
+                document.getElementById('confirmBtn').style.display = '';
+                document.getElementById('newGroupBtn').style.display = '';
+                document.getElementById('confirmProgress').style.display = 'none';
+            }
+        })
+        .catch(function(err) {
+            showAlert('❌', 'Error', err.message, 'danger');
+            document.getElementById('confirmBtn').style.display = '';
+            document.getElementById('newGroupBtn').style.display = '';
+            document.getElementById('confirmProgress').style.display = 'none';
+        });
+}
+</script>
+{% endblock %}

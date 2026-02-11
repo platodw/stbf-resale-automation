@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.edit-page { max-width: 900px; margin: 0 auto; }
+.edit-photo-card {
+    position: relative; flex-shrink: 0;
+}
+.edit-photo-card img {
+    width: 90px; height: 90px; object-fit: cover;
+    border-radius: 8px; border: 2px solid var(--border); cursor: pointer;
+}
+.photo-seq {
+    position: absolute; top: 2px; left: 2px;
+    background: rgba(26,26,26,0.7); color: white;
+    border-radius: 50%; width: 20px; height: 20px;
+    font-size: 0.65rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+.stock-badge {
+    position: absolute; bottom: 2px; left: 2px;
+    background: rgba(200,169,126,0.9); color: white;
+    border-radius: 4px; padding: 1px 4px;
+    font-size: 0.55rem; font-weight: 700;
+}
+.photo-controls {
+    position: absolute; top: 0; right: 0; bottom: 0; left: 0;
+    display: flex; align-items: flex-end; justify-content: center;
+    gap: 2px; padding-bottom: 3px;
+    opacity: 0; transition: opacity 0.15s;
+    background: linear-gradient(transparent 40%, rgba(0,0,0,0.4));
+    border-radius: 8px;
+}
+.edit-photo-card:hover .photo-controls { opacity: 1; }
+.photo-controls button {
+    background: rgba(255,255,255,0.9); border: none;
+    border-radius: 4px; padding: 2px 6px; font-size: 0.7rem;
+    cursor: pointer; font-weight: 700;
+}
+.photo-controls .photo-del-btn { background: rgba(192,57,43,0.9); color: white; }
+.photos-strip { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+.photos-strip img { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+.section { background: var(--card); border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+.section-title { font-weight: 700; font-size: 1rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+.platform-tag { font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; vertical-align: middle; }
+.tag-ebay { background: #E53238; color: white; }
+.tag-posh { background: #7B2D8E; color: white; }
+.tag-both { background: #333; color: white; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.field-row-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; }
+.field { margin-bottom: 0.75rem; }
+.field label { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.8rem; margin-bottom: 0.2rem; color: #555; }
+.field input, .field textarea, .field select {
+    width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; font-family: inherit;
+}
+.field textarea { resize: vertical; }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(108,92,231,0.15); }
+.char-count { font-size: 0.7rem; color: var(--muted); text-align: right; }
+.actions-sticky { position: sticky; bottom: 0; background: var(--bg); padding: 0.75rem 0; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; z-index: 50; }
+.inline-tag { font-size: 0.6rem; padding: 1px 4px; border-radius: 3px; font-weight: 700; }
+@media (max-width: 600px) {
+    .field-row, .field-row-3, .field-row-4 { grid-template-columns: 1fr; }
+}
+</style>
+
+<div class="edit-page">
+    <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+        <a href="/review" class="btn btn-secondary btn-sm">← All Listings</a>
+        {% if prev_id %}<a href="/listing/{{ prev_id }}" class="btn btn-secondary btn-sm">◀ Prev</a>{% endif %}
+        {% if next_id %}<a href="/listing/{{ next_id }}" class="btn btn-secondary btn-sm">Next ▶</a>{% endif %}
+        <h1 style="margin:0; font-size:1.15rem; flex:1;">Listing {{ listing_index }} of {{ listing_total }}</h1>
+        <div style="display:flex;gap:0.4rem;align-items:center;">
+            <span style="font-size:0.7rem;font-weight:700;padding:2px 6px;border-radius:4px;{{ 'background:#E53238;color:white;' if listing.ebay_listing_id else 'background:#eee;color:#aaa;' }}">eBay {{ '✅' if listing.ebay_listing_id else '—' }}</span>
+            <span style="font-size:0.7rem;font-weight:700;padding:2px 6px;border-radius:4px;{{ 'background:#7B2D8E;color:white;' if listing.poshmark_listing_id else 'background:#eee;color:#aaa;' }}">Posh {{ '✅' if listing.poshmark_listing_id else '—' }}</span>
+        </div>
+    </div>
+
+    <!-- Photos -->
+    <div class="photos-strip" id="photoStrip">
+        {% for p in photos %}
+        <div class="edit-photo-card" data-photo-id="{{ p.id }}">
+            <img src="{{ p.file_path|thumb }}" alt="Photo {{ loop.index }}" onclick="window.open('{{ p.file_path }}','_blank')" title="Click for full size">
+            <div class="photo-seq">{{ loop.index }}</div>
+            {% if p.is_stock %}<div class="stock-badge">📷 Stock</div>{% endif %}
+            <div class="photo-controls">
+                {% if not loop.first %}<button onclick="movePhoto({{ p.id }}, 'left')" title="Move left">◀</button>{% endif %}
+                {% if not loop.last %}<button onclick="movePhoto({{ p.id }}, 'right')" title="Move right">▶</button>{% endif %}
+                <button onclick="deleteEditPhoto({{ p.id }})" title="Delete" class="photo-del-btn">×</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <form id="editForm">
+        <!-- Core Details -->
+        <div class="section">
+            <div class="section-title">📝 Core Details <span class="platform-tag tag-both">eBay + Posh</span></div>
+            <div class="field">
+                <label>Title <span class="inline-tag tag-ebay">eBay: 80 char max</span></label>
+                <input type="text" name="title" value="{{ listing.title }}" maxlength="80" oninput="document.getElementById('titleCount').textContent=this.value.length+'/80'">
+                <div class="char-count" id="titleCount">{{ listing.title|length }}/80</div>
+            </div>
+            <div class="field">
+                <label>Description <span class="inline-tag tag-ebay">eBay</span> <span class="inline-tag tag-posh">Posh</span>
+                    <button type="button" class="inline-tag" style="background:#ddd;color:#333;cursor:pointer;border:none;" onclick="toggleDescView()">Toggle Preview</button>
+                </label>
+                <div id="descPreview" style="padding:0.75rem;border:1px solid var(--border);border-radius:6px;min-height:100px;font-size:0.9rem;line-height:1.5;background:white;display:block;">{{ listing.description|safe }}</div>
+                <textarea id="descEdit" name="description" rows="6" style="display:none;">{{ listing.description }}</textarea>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Price ($) <span class="inline-tag tag-both">Both</span></label>
+                    <input type="number" name="price" value="{{ listing.price }}" step="0.01" min="0">
+                </div>
+                <div class="field">
+                    <label>Condition <span class="inline-tag tag-both">Both</span></label>
+                    <select name="condition">
+                        {% for c in ['New with Tags', 'New without Tags', 'Pre-owned - Excellent', 'Pre-owned - Good', 'Pre-owned - Fair'] %}
+                        <option {% if listing.condition == c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Item Details -->
+        <div class="section">
+            <div class="section-title">👕 Item Details <span class="platform-tag tag-both">eBay + Posh</span></div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Brand</label>
+                    <input type="text" name="brand" value="{{ listing.brand or '' }}">
+                </div>
+                <div class="field">
+                    <label>Size</label>
+                    <input type="text" name="size" value="{{ listing.size or '' }}">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Color</label>
+                    <input type="text" name="color" value="{{ listing.color or '' }}">
+                </div>
+                <div class="field">
+                    <label>Material / Fabric</label>
+                    <input type="text" name="material" value="{{ listing.material or '' }}">
+                </div>
+            </div>
+            <div class="field">
+                <label>Style</label>
+                <input type="text" name="style" value="{{ listing.style or '' }}">
+            </div>
+        </div>
+
+        <!-- eBay-Specific -->
+        <div class="section">
+            <div class="section-title"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'%3E%3Ctext x='0' y='90' font-size='100' font-weight='bold'%3E%3Ctspan fill='%23E53238'%3Ee%3C/tspan%3E%3Ctspan fill='%230064D2'%3Eb%3C/tspan%3E%3Ctspan fill='%23F5AF02'%3Ea%3C/tspan%3E%3Ctspan fill='%2386B817'%3Ey%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="eBay" style="height:20px;"> eBay Details</div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Category <span class="inline-tag tag-ebay">eBay</span></label>
+                    <input type="text" name="category" value="{{ listing.category or '' }}">
+                </div>
+                <div class="field">
+                    <label>Category ID <span class="inline-tag tag-ebay">eBay</span></label>
+                    <input type="text" name="ebay_category_id" value="{{ listing.ebay_category_id or '' }}" placeholder="e.g. 63861">
+                </div>
+            </div>
+            <div class="field-row-3">
+                <div class="field">
+                    <label>Format</label>
+                    <select name="format_type">
+                        <option {% if listing.format_type == 'Buy It Now' %}selected{% endif %}>Buy It Now</option>
+                        <option {% if listing.format_type == 'Auction' %}selected{% endif %}>Auction</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Best Offer</label>
+                    <select name="best_offer">
+                        <option value="1" {% if listing.best_offer %}selected{% endif %}>Yes</option>
+                        <option value="0" {% if not listing.best_offer %}selected{% endif %}>No</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Quantity</label>
+                    <input type="number" name="quantity" value="{{ listing.quantity or 1 }}" min="1">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>SKU</label>
+                    <input type="text" name="sku" value="{{ listing.sku or '' }}" placeholder="Optional">
+                </div>
+                <div class="field">
+                    <label>UPC</label>
+                    <input type="text" name="upc" value="{{ listing.upc or '' }}" placeholder="Does not apply">
+                </div>
+            </div>
+        </div>
+
+        <!-- Shipping -->
+        <div class="section">
+            <div class="section-title">📦 Shipping <span class="platform-tag tag-ebay">eBay</span></div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Shipping Policy</label>
+                    <select name="shipping_policy">
+                        {% for p in ['Flat Rate', 'Free Shipping', 'Calculated'] %}
+                        <option {% if listing.shipping_policy == p %}selected{% endif %}>{{ p }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Shipping Cost ($)</label>
+                    <input type="number" name="shipping_cost" value="{{ listing.shipping_cost or 0 }}" step="0.01" min="0">
+                </div>
+            </div>
+            <div class="field-row-4">
+                <div class="field">
+                    <label>Weight (lbs)</label>
+                    <input type="number" name="shipping_weight_lbs" value="{{ listing.shipping_weight_lbs or 0 }}" step="1" min="0">
+                </div>
+                <div class="field">
+                    <label>Weight (oz)</label>
+                    <input type="number" name="shipping_weight_oz" value="{{ listing.shipping_weight_oz or 0 }}" step="1" min="0">
+                </div>
+                <div class="field">
+                    <label>Pkg Length (in)</label>
+                    <input type="number" name="package_length" value="{{ listing.package_length or 0 }}" step="0.1" min="0">
+                </div>
+                <div class="field">
+                    <label>Pkg Width (in)</label>
+                    <input type="number" name="package_width" value="{{ listing.package_width or 0 }}" step="0.1" min="0">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Pkg Height (in)</label>
+                    <input type="number" name="package_height" value="{{ listing.package_height or 0 }}" step="0.1" min="0">
+                </div>
+                <div class="field">
+                    <label>Return Policy</label>
+                    <select name="return_policy">
+                        {% for r in ['30 Day Returns', '60 Day Returns', 'No Returns'] %}
+                        <option {% if listing.return_policy == r %}selected{% endif %}>{{ r }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Poshmark -->
+        <div class="section" style="opacity:0.6;">
+            <div class="section-title"><span style="font-size:1.1rem;">👛</span> Poshmark Details <span class="platform-tag tag-posh">Coming Soon</span></div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Posh Category</label>
+                    <input type="text" name="poshmark_category" value="{{ listing.poshmark_category or '' }}" placeholder="e.g. Women > Dresses">
+                </div>
+                <div class="field">
+                    <label>Posh Size</label>
+                    <input type="text" name="poshmark_size" value="{{ listing.poshmark_size or '' }}">
+                </div>
+            </div>
+            <div class="field-row">
+                <div class="field">
+                    <label>Original Retail Price ($)</label>
+                    <input type="number" name="poshmark_original_price" value="{{ listing.poshmark_original_price or 0 }}" step="0.01" min="0">
+                </div>
+                <div class="field">
+                    <label>Posh Brand</label>
+                    <input type="text" name="poshmark_brand" value="{{ listing.poshmark_brand or '' }}">
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Sticky Actions -->
+    <div class="actions-sticky">
+        <button class="btn btn-primary" onclick="saveListing()">💾 Save</button>
+        {% if listing.ebay_listing_id %}
+        <button class="btn btn-success" disabled style="opacity:0.5;cursor:not-allowed;">✅ Posted to eBay</button>
+        {% else %}
+        <button class="btn btn-success" id="publishBtn" onclick="publishListing({{ listing.id }})">🛒 Post to eBay</button>
+        {% endif %}
+        {% if listing.poshmark_listing_id %}
+        <button class="btn" disabled style="background:#7B2D8E;color:white;opacity:0.5;cursor:not-allowed;">✅ Posted to Poshmark</button>
+        {% else %}
+        <button class="btn" id="poshBtn" onclick="showPoshHelper()" style="background:#7B2D8E;color:white;">👛 Post to Poshmark</button>
+        {% endif %}
+        {% if not listing.ebay_listing_id and not listing.poshmark_listing_id %}
+        <button class="btn btn-accent" onclick="publishBoth({{ listing.id }})">🚀 Post to Both</button>
+        {% endif %}
+        <button class="btn btn-danger btn-sm" onclick="deleteListing({{ listing.id }})">🗑 Delete</button>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var descShowingPreview = true;
+function toggleDescView() {
+    var preview = document.getElementById('descPreview');
+    var edit = document.getElementById('descEdit');
+    if (descShowingPreview) {
+        preview.style.display = 'none';
+        edit.style.display = '';
+        descShowingPreview = false;
+    } else {
+        // Sync edit back to preview
+        preview.innerHTML = edit.value;
+        preview.style.display = 'block';
+        edit.style.display = 'none';
+        descShowingPreview = true;
+    }
+}
+
+function getFormData() {
+    // Make sure description textarea has current value
+    var edit = document.getElementById('descEdit');
+    var preview = document.getElementById('descPreview');
+    if (descShowingPreview) {
+        edit.value = preview.innerHTML;
+    }
+    return new FormData(document.getElementById('editForm'));
+}
+
+function movePhoto(photoId, direction) {
+    fetch('/api/photo/' + photoId + '/move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({direction: direction})
+    }).then(function() { location.reload(); });
+}
+
+function deleteEditPhoto(photoId) {
+    showConfirm({
+        icon: '🗑',
+        title: 'Delete Photo',
+        message: 'Remove this photo from the listing?',
+        confirmText: 'Delete',
+        type: 'danger',
+        onConfirm: function() {
+            fetch('/api/photo/' + photoId, { method: 'DELETE' })
+                .then(function() { location.reload(); });
+        }
+    });
+}
+
+// Keyboard nav: left/right arrows for prev/next (when not in an input)
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    {% if prev_id %}if (e.key === 'ArrowLeft') window.location = '/listing/{{ prev_id }}';{% endif %}
+    {% if next_id %}if (e.key === 'ArrowRight') window.location = '/listing/{{ next_id }}';{% endif %}
+});
+
+function saveListing() {
+    var fd = getFormData();
+    fetch('/api/listing/{{ listing.id }}/save', { method: 'POST', body: fd })
+        .then(function(resp) {
+            if (resp.ok) showToast('Saved!', 2000, 'success');
+            else throw new Error('Save failed');
+        })
+        .catch(function(err) {
+            showAlert('❌', 'Save Failed', err.message, 'danger');
+        });
+}
+
+function publishListing(id) {
+    showConfirm({
+        icon: '🛒',
+        title: 'Publish to eBay',
+        message: 'This will list the item on eBay under <strong>somethingtobefound28</strong>. Ready to go live?',
+        confirmText: 'Publish',
+        type: 'success',
+        onConfirm: function() {
+            var btn = document.getElementById('publishBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Publishing...'; }
+            // Save first, then publish
+            var fd = getFormData();
+            fetch('/api/listing/' + id + '/save', { method: 'POST', body: fd })
+                .then(function() {
+                    return fetch('/api/listing/' + id + '/publish', { method: 'POST' });
+                })
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    if (data.error) {
+                        if (btn) { btn.disabled = false; btn.textContent = '🛒 Publish to eBay'; }
+                        showAlert('😕', 'Publish Failed', data.error, 'danger');
+                    } else {
+                        // Show success then redirect to review
+                        showModal({
+                            icon: '🎉',
+                            title: 'Listed on eBay!',
+                            message: 'Your item is now live on eBay.<br><a href="https://www.ebay.com/itm/' + data.ebay_listing_id + '" target="_blank" style="color:var(--accent-dark);font-weight:600;">View on eBay →</a>',
+                            confirmText: 'Back to Listings',
+                            cancelText: false,
+                            type: 'success',
+                            onConfirm: function() {
+                                window.location.href = '/review';
+                            }
+                        });
+                    }
+                })
+                .catch(function(err) {
+                    if (btn) { btn.disabled = false; btn.textContent = '🛒 Publish to eBay'; }
+                    showAlert('❌', 'Error', err.message, 'danger');
+                });
+        }
+    });
+}
+
+function publishBoth(id) {
+    showConfirm({
+        icon: '🚀',
+        title: 'Post to Both Platforms',
+        message: 'This will list on <strong>eBay</strong> and then open the <strong>Poshmark helper</strong> so you can post there too.',
+        confirmText: 'Let\'s Go',
+        type: 'success',
+        onConfirm: function() {
+            var fd = getFormData();
+            fetch('/api/listing/' + id + '/save', { method: 'POST', body: fd })
+                .then(function() {
+                    showToast('Publishing to eBay...', 3000);
+                    return fetch('/api/listing/' + id + '/publish', { method: 'POST' });
+                })
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    if (data.error) throw new Error('eBay: ' + data.error);
+                    showModal({
+                        icon: '🎉',
+                        title: 'Listed on eBay!',
+                        message: (data.ebay_url ? '<a href="' + data.ebay_url + '" target="_blank" style="color:var(--accent-dark);font-weight:600;">View on eBay →</a><br><br>' : '') + 'Now let\'s do Poshmark — click below for the listing helper.',
+                        confirmText: '👛 Poshmark Helper',
+                        cancelText: 'Done',
+                        type: 'success',
+                        onConfirm: function() { location.reload(); setTimeout(showPoshHelper, 500); },
+                        onCancel: function() { location.reload(); }
+                    });
+                })
+                .catch(function(err) {
+                    showAlert('❌', 'Error', err.message, 'danger');
+                });
+        }
+    });
+}
+
+function showPoshHelper() {
+    // Grab current form values for the cheat sheet
+    var title = document.querySelector('input[name="title"]').value || '';
+    var descEl = document.getElementById('descEdit');
+    var desc = descEl ? descEl.value.replace(/<[^>]+>/g, '').trim() : '';
+    if (desc.length > 300) desc = desc.substring(0, 300) + '...';
+    var brand = document.querySelector('input[name="brand"]').value || '';
+    var size = document.querySelector('input[name="size"]').value || '';
+    var color = document.querySelector('input[name="color"]').value || '';
+    var price = document.querySelector('input[name="price"]').value || '';
+    var condition = document.querySelector('select[name="condition"]').value || '';
+    var poshCat = document.querySelector('input[name="poshmark_category"]').value || '';
+    var origPrice = document.querySelector('input[name="poshmark_original_price"]').value || '';
+    if (!origPrice || origPrice == '0') origPrice = Math.round(parseFloat(price || 25) * 3);
+
+    var condMap = {'New with tags':'NWT','New without tags':'NWOT','Pre-owned - Excellent':'Good','Pre-owned - Good':'Good','Pre-owned - Fair':'Fair'};
+    var poshCond = condMap[condition] || 'Good';
+
+    var html = '<div style="text-align:left;font-size:0.95rem;line-height:1.7;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><strong>Title</strong><button onclick="copyText(\'' + title.replace(/'/g, "\\'") + '\')" style="font-size:0.75rem;padding:2px 8px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;">📋 Copy</button></div>';
+    html += '<div style="background:#f5f5f5;padding:6px 10px;border-radius:6px;margin-bottom:10px;font-size:0.85rem;word-break:break-word;">' + title + '</div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><strong>Description</strong><button onclick="copyDesc()" style="font-size:0.75rem;padding:2px 8px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;">📋 Copy</button></div>';
+    html += '<div style="background:#f5f5f5;padding:6px 10px;border-radius:6px;margin-bottom:10px;font-size:0.85rem;max-height:80px;overflow-y:auto;word-break:break-word;">' + desc + '</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;">';
+    if (poshCat) html += '<div><strong>Category:</strong> ' + poshCat + '</div>';
+    if (brand) html += '<div><strong>Brand:</strong> ' + brand + '</div>';
+    if (size) html += '<div><strong>Size:</strong> ' + size + '</div>';
+    if (color) html += '<div><strong>Color:</strong> ' + color.split(',')[0].split('/')[0].trim() + '</div>';
+    html += '<div><strong>Condition:</strong> ' + poshCond + '</div>';
+    html += '<div><strong>Price:</strong> $' + price + '</div>';
+    html += '<div><strong>Orig Price:</strong> $' + origPrice + '</div>';
+    html += '</div></div>';
+
+    showModal({
+        icon: '👛',
+        title: 'Poshmark Listing Helper',
+        message: html,
+        confirmText: 'Open Poshmark',
+        cancelText: 'Close',
+        type: 'success',
+        onConfirm: function() { window.open('https://poshmark.com/create-listing', '_blank'); }
+    });
+}
+
+function copyText(text) {
+    navigator.clipboard.writeText(text).then(function() { showToast('Copied!', 1500, 'success'); });
+}
+function copyDesc() {
+    var el = document.getElementById('descEdit');
+    var text = el ? el.value.replace(/<[^>]+>/g, '') : '';
+    navigator.clipboard.writeText(text).then(function() { showToast('Description copied!', 1500, 'success'); });
+}
+
+function deleteListing(id) {
+    showConfirm({
+        icon: '🗑',
+        title: 'Delete Listing',
+        message: 'This will permanently remove the listing and cannot be undone.',
+        confirmText: 'Delete',
+        type: 'danger',
+        onConfirm: function() {
+            fetch('/api/listing/' + id, { method: 'DELETE' })
+                .then(function() { window.location.href = '/review'; });
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Item Status Section -->
+    <div class="card">
+        <h2>📦 Items Status</h2>
+        <div class="metric-item">
+            <div class="metric-number">{{ items_ready }}</div>
+            <div class="metric-label">Items Ready for Review</div>
+        </div>
+        
+        {% if status_counts %}
+        <div class="status-breakdown">
+            <h3>All Items</h3>
+            {% for status, count in status_counts.items() %}
+            <div class="status-item">
+                <span class="status-label">{{ status|title }}</span>
+                <span class="status-count">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Financial Metrics Section -->
+    <div class="card">
+        <h2>💰 Financial Metrics</h2>
+        <div class="financial-loading">
+            <p>Loading financial data...</p>
+            <div class="loading-placeholder"></div>
+        </div>
+        <div class="financial-data" style="display: none;">
+            <div class="time-period-tabs">
+                <button class="tab-btn active" data-period="week">This Week</button>
+                <button class="tab-btn" data-period="month">This Month</button>
+                <button class="tab-btn" data-period="ytd">YTD Comparison</button>
+            </div>
+            
+            <div class="financial-content">
+                <div class="period-data" id="week-data">
+                    <div class="metric-row">
+                        <div class="metric-item">
+                            <div class="metric-number" id="ebay-week">$0</div>
+                            <div class="metric-label">eBay Income</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-number" id="poshmark-week">$0</div>
+                            <div class="metric-label">Poshmark Income</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-number" id="shipping-week">$0</div>
+                            <div class="metric-label">Shipping Costs</div>
+                        </div>
+                    </div>
+                    <div class="metric-item net-profit">
+                        <div class="metric-number" id="net-week">$0</div>
+                        <div class="metric-label">Net Profit</div>
+                    </div>
+                </div>
+                
+                <div class="period-data" id="month-data" style="display: none;">
+                    <div class="metric-row">
+                        <div class="metric-item">
+                            <div class="metric-number" id="ebay-month">$0</div>
+                            <div class="metric-label">eBay Income</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-number" id="poshmark-month">$0</div>
+                            <div class="metric-label">Poshmark Income</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-number" id="shipping-month">$0</div>
+                            <div class="metric-label">Shipping Costs</div>
+                        </div>
+                    </div>
+                    <div class="metric-item net-profit">
+                        <div class="metric-number" id="net-month">$0</div>
+                        <div class="metric-label">Net Profit</div>
+                    </div>
+                </div>
+                
+                <div class="period-data" id="ytd-data" style="display: none;">
+                    <div class="comparison-row">
+                        <div class="comparison-col">
+                            <h4>2026 YTD</h4>
+                            <div class="metric-item">
+                                <div class="metric-number" id="ytd-current">$0</div>
+                                <div class="metric-label">Net Profit</div>
+                            </div>
+                        </div>
+                        <div class="comparison-col">
+                            <h4>2025 Same Period</h4>
+                            <div class="metric-item">
+                                <div class="metric-number" id="ytd-prior">$0</div>
+                                <div class="metric-label">Net Profit</div>
+                            </div>
+                        </div>
+                        <div class="comparison-col">
+                            <h4>Difference</h4>
+                            <div class="metric-item">
+                                <div class="metric-number" id="ytd-diff">$0</div>
+                                <div class="metric-label" id="ytd-diff-label">Change</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.card h2 {
+    margin: 0 0 1.5rem 0;
+    color: #1f2937;
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+.metric-item {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.metric-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #059669;
+    margin-bottom: 0.5rem;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.status-breakdown {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.status-breakdown h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    color: #374151;
+    font-weight: 600;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-label {
+    color: #374151;
+    font-weight: 500;
+}
+
+.status-count {
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.financial-loading {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem 0;
+}
+
+.loading-placeholder {
+    height: 200px;
+    background: #f3f4f6;
+    border-radius: 8px;
+    margin-top: 1rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.time-period-tabs {
+    display: flex;
+    border-bottom: 1px solid #e5e7eb;
+    margin-bottom: 2rem;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    font-weight: 500;
+    color: #6b7280;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.tab-btn.active {
+    color: #059669;
+    border-bottom-color: #059669;
+}
+
+.tab-btn:hover {
+    color: #374151;
+}
+
+.metric-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.net-profit .metric-number {
+    color: #059669;
+    font-size: 3rem;
+}
+
+.comparison-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+}
+
+.comparison-col {
+    text-align: center;
+}
+
+.comparison-col h4 {
+    margin: 0 0 1rem 0;
+    color: #374151;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+#ytd-diff.positive {
+    color: #059669;
+}
+
+#ytd-diff.negative {
+    color: #dc2626;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.period-data').forEach(d => d.style.display = 'none');
+            
+            this.classList.add('active');
+            document.getElementById(this.dataset.period + '-data').style.display = 'block';
+        });
+    });
+    
+    // Load financial data
+    loadFinancialData();
+});
+
+async function loadFinancialData() {
+    try {
+        const response = await fetch('/api/financial-data');
+        if (response.ok) {
+            const data = await response.json();
+            updateFinancialDisplay(data);
+            document.querySelector('.financial-loading').style.display = 'none';
+            document.querySelector('.financial-data').style.display = 'block';
+        } else {
+            throw new Error('Failed to load financial data');
+        }
+    } catch (error) {
+        console.error('Error loading financial data:', error);
+        document.querySelector('.financial-loading').innerHTML = '<p style="color: #dc2626;">Failed to load financial data. Please try refreshing.</p>';
+    }
+}
+
+function updateFinancialDisplay(data) {
+    // Update week data
+    document.getElementById('ebay-week').textContent = '$' + data.week.ebay.toFixed(2);
+    document.getElementById('poshmark-week').textContent = '$' + data.week.poshmark.toFixed(2);
+    document.getElementById('shipping-week').textContent = '$' + data.week.shipping.toFixed(2);
+    document.getElementById('net-week').textContent = '$' + (data.week.ebay + data.week.poshmark - data.week.shipping).toFixed(2);
+    
+    // Update month data
+    document.getElementById('ebay-month').textContent = '$' + data.month.ebay.toFixed(2);
+    document.getElementById('poshmark-month').textContent = '$' + data.month.poshmark.toFixed(2);
+    document.getElementById('shipping-month').textContent = '$' + data.month.shipping.toFixed(2);
+    document.getElementById('net-month').textContent = '$' + (data.month.ebay + data.month.poshmark - data.month.shipping).toFixed(2);
+    
+    // Update YTD data
+    const ytdCurrent = data.ytd.current.ebay + data.ytd.current.poshmark - data.ytd.current.shipping;
+    const ytdPrior = data.ytd.prior.ebay + data.ytd.prior.poshmark - data.ytd.prior.shipping;
+    const ytdDiff = ytdCurrent - ytdPrior;
+    
+    document.getElementById('ytd-current').textContent = '$' + ytdCurrent.toFixed(2);
+    document.getElementById('ytd-prior').textContent = '$' + ytdPrior.toFixed(2);
+    document.getElementById('ytd-diff').textContent = '$' + Math.abs(ytdDiff).toFixed(2);
+    
+    const diffElement = document.getElementById('ytd-diff');
+    const diffLabel = document.getElementById('ytd-diff-label');
+    
+    if (ytdDiff >= 0) {
+        diffElement.classList.add('positive');
+        diffElement.classList.remove('negative');
+        diffLabel.textContent = 'Ahead';
+    } else {
+        diffElement.classList.add('negative');
+        diffElement.classList.remove('positive');
+        diffLabel.textContent = 'Behind';
+    }
+}
+</script>
+{% endblock %}

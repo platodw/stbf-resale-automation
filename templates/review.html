@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.list-item { display: flex; gap: 0.75rem; align-items: center; padding: 0.75rem; background: var(--card); border-radius: 8px; margin-bottom: 0.5rem; box-shadow: var(--shadow); cursor: pointer; transition: all 0.15s; }
+.list-item:hover { transform: translateX(4px); box-shadow: 0 2px 16px rgba(0,0,0,0.12); }
+.list-thumb { width: 56px; height: 56px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
+.list-details { flex: 1; min-width: 0; }
+.list-details h3 { font-size: 0.9rem; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-meta { font-size: 0.75rem; color: var(--muted); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
+.list-price { font-weight: 700; color: var(--primary); font-size: 1rem; flex-shrink: 0; }
+.platform-status { display: inline-flex; align-items: center; gap: 0.2rem; font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+.platform-status.posted { opacity: 1; }
+.platform-status.not-posted { opacity: 0.35; }
+.platform-status .ebay-logo { height: 12px; }
+.platform-status .posh-icon { font-size: 0.7rem; }
+.platform-check { font-size: 0.6rem; }
+.empty-state { text-align: center; padding: 3rem; color: var(--muted); }
+.empty-state a { color: var(--primary); text-decoration: none; font-weight: 600; }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+    <h1 style="margin:0;">Review Listings</h1>
+    <span class="text-muted">{{ listings|length }} listing(s)</span>
+</div>
+
+{% if listings %}
+<div id="listView">
+    {% for ld in listings %}
+    {% set l = ld.listing %}
+    {% set photos = ld.photos %}
+    <div class="list-item" onclick="window.location='/listing/{{ l.id }}'">
+        {% if photos %}
+        <img class="list-thumb" src="{{ photos[0].file_path|thumb }}" alt="">
+        {% else %}
+        <div class="list-thumb" style="background:#eee;display:flex;align-items:center;justify-content:center;">📷</div>
+        {% endif %}
+        <div class="list-details">
+            <h3>{{ l.title or 'Untitled' }}</h3>
+            <div class="list-meta">
+                {% if l.brand %}<span>{{ l.brand }}</span>{% endif %}
+                {% if l.size %}<span>Size {{ l.size }}</span>{% endif %}
+                {% if l.condition %}<span>{{ l.condition }}</span>{% endif %}
+                <span class="platform-status {{ 'posted' if l.ebay_listing_id else 'not-posted' }}" title="{{ 'Live on eBay' if l.ebay_listing_id else 'Not on eBay' }}">
+                    <img class="ebay-logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'%3E%3Ctext x='0' y='90' font-size='100' font-weight='bold'%3E%3Ctspan fill='%23E53238'%3Ee%3C/tspan%3E%3Ctspan fill='%230064D2'%3Eb%3C/tspan%3E%3Ctspan fill='%23F5AF02'%3Ea%3C/tspan%3E%3Ctspan fill='%2386B817'%3Ey%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="eBay">
+                    <span class="platform-check">{{ '✅' if l.ebay_listing_id else '⬜' }}</span>
+                </span>
+                <span class="platform-status {{ 'posted' if l.poshmark_listing_id else 'not-posted' }}" title="{{ 'Live on Poshmark' if l.poshmark_listing_id else 'Not on Poshmark' }}">
+                    <span class="posh-icon" style="color:#7B2D8E;font-weight:800;">P</span>
+                    <span class="platform-check">{{ '✅' if l.poshmark_listing_id else '⬜' }}</span>
+                </span>
+            </div>
+        </div>
+        <div class="list-price">${{ '%.2f'|format(l.price) }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <p style="font-size:1.5rem; margin-bottom:0.5rem;">📭</p>
+    <p>No listings to review</p>
+    <p><a href="/">Upload photos to get started →</a></p>
+</div>
+{% endif %}
+{% endblock %}

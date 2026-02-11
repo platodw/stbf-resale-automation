@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.filter-bar { display: flex; gap: 0.35rem; margin-bottom: 1rem; }
+.filter-btn {
+    padding: 0.4rem 0.85rem; border: 1.5px solid var(--border); border-radius: 8px;
+    background: var(--card); font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; display: inline-flex; align-items: center; gap: 0.3rem;
+    font-family: inherit; color: var(--text);
+}
+.filter-btn:hover { border-color: var(--accent); }
+.filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.filter-btn .ebay-mini { height: 11px; }
+.platform-badges { display: flex; gap: 0.3rem; align-items: center; }
+.platform-badge {
+    font-size: 0.6rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+    display: inline-flex; align-items: center; gap: 0.2rem;
+}
+.platform-badge.ebay-on { background: #E53238; color: white; }
+.platform-badge.ebay-off { background: #f0f0f0; color: #ccc; }
+.platform-badge.posh-on { background: #7B2D8E; color: white; }
+.platform-badge.posh-off { background: #f0f0f0; color: #ccc; }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+    <h1 style="margin:0;">Published</h1>
+    <span class="text-muted" id="countLabel">{{ listings|length }} listing(s)</span>
+</div>
+
+<div class="filter-bar">
+    <button class="filter-btn active" data-filter="all" onclick="filterListings('all', this)">All</button>
+    <button class="filter-btn" data-filter="ebay" onclick="filterListings('ebay', this)">
+        <img class="ebay-mini" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120'%3E%3Ctext x='0' y='90' font-size='100' font-weight='bold'%3E%3Ctspan fill='%23E53238'%3Ee%3C/tspan%3E%3Ctspan fill='%230064D2'%3Eb%3C/tspan%3E%3Ctspan fill='%23F5AF02'%3Ea%3C/tspan%3E%3Ctspan fill='%2386B817'%3Ey%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="eBay"> eBay
+    </button>
+    <button class="filter-btn" data-filter="poshmark" onclick="filterListings('poshmark', this)">
+        <span style="color:#7B2D8E;font-weight:800;">P</span> Poshmark
+    </button>
+</div>
+
+{% if not listings %}
+<div class="empty-state">
+    <p style="font-size:1.5rem; margin-bottom:0.5rem;">🎉</p>
+    <p>No published listings yet</p>
+    <p><a href="/">Upload photos to get started →</a></p>
+</div>
+{% endif %}
+
+<div id="publishedList">
+{% for ld in listings %}
+{% set l = ld.listing %}
+{% set photos = ld.photos %}
+<div class="list-item listing-row" 
+     data-ebay="{{ '1' if l.ebay_listing_id else '0' }}" 
+     data-posh="{{ '1' if l.poshmark_listing_id else '0' }}"
+     onclick="window.location='/listing/{{ l.id }}'"
+     style="cursor:pointer;">
+    {% if photos %}
+    <img class="list-thumb" src="{{ photos[0].file_path|thumb }}" alt="">
+    {% else %}
+    <div class="list-thumb" style="background:#eee;display:flex;align-items:center;justify-content:center;">📷</div>
+    {% endif %}
+    <div class="list-details">
+        <h3>{{ l.title }}</h3>
+        <div class="list-meta">
+            {% if l.brand %}<span>{{ l.brand }}</span>{% endif %}
+            {% if l.published_at %}<span>{{ l.published_at[:10] }}</span>{% endif %}
+            <div class="platform-badges">
+                <span class="platform-badge {{ 'ebay-on' if l.ebay_listing_id else 'ebay-off' }}">
+                    eBay {{ '✅' if l.ebay_listing_id else '—' }}
+                </span>
+                <span class="platform-badge {{ 'posh-on' if l.poshmark_listing_id else 'posh-off' }}">
+                    Posh {{ '✅' if l.poshmark_listing_id else '—' }}
+                </span>
+            </div>
+        </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+        <div class="list-price">${{ '%.2f'|format(l.price) }}</div>
+        <div style="display:flex;flex-direction:column;gap:0.2rem;">
+            {% if l.ebay_listing_id %}
+            <a href="https://www.ebay.com/itm/{{ l.ebay_listing_id }}" target="_blank" class="btn btn-sm btn-secondary" onclick="event.stopPropagation();" style="font-size:0.7rem;padding:0.2rem 0.5rem;">eBay ↗</a>
+            {% endif %}
+            {% if l.poshmark_listing_id %}
+            <a href="https://poshmark.com/listing/{{ l.poshmark_listing_id }}" target="_blank" class="btn btn-sm btn-secondary" onclick="event.stopPropagation();" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Posh ↗</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterListings(filter, btn) {
+    // Update active button
+    document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    var rows = document.querySelectorAll('.listing-row');
+    var visible = 0;
+    rows.forEach(function(row) {
+        var show = false;
+        if (filter === 'all') show = true;
+        else if (filter === 'ebay') show = row.dataset.ebay === '1';
+        else if (filter === 'poshmark') show = row.dataset.posh === '1';
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.getElementById('countLabel').textContent = visible + ' listing(s)';
+}
+</script>
+{% endblock %}
