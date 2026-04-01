@@ -2,6 +2,10 @@
 
 Python/FastAPI backend for STBF resale listing automation. Upload item photos, AI groups them, generates draft listings with market research, then publishes to eBay and Poshmark. Mobile-first web UI served via Jinja2 templates.
 
+## Context
+
+The original prototype for Katie's resale listing workflow, built before the Lovable/Supabase version (stbf repo). This runs locally as a standalone server. It may still be used for local photo processing or as a fallback, but the primary app has moved to the stbf repo.
+
 ## Tech Stack
 
 - Python 3 + FastAPI + Uvicorn
